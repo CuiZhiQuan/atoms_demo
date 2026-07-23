@@ -19,7 +19,7 @@ from backend.db import (
 )
 from backend.config import PROJECTS_DIR
 from backend.auth import hash_password, verify_password, create_token, get_current_user
-from backend.deploy import deploy_to_vercel, get_deployment_status
+from backend.deploy import deploy_to_netlify, get_deployment_status
 
 router = APIRouter(prefix="/api")
 
@@ -243,7 +243,7 @@ async def deploy_project(project_id: str, user_id: str = Depends(get_current_use
         raise HTTPException(status_code=403, detail="Not authorized")
 
     try:
-        result = await deploy_to_vercel(project_id, project["name"])
+        result = await deploy_to_netlify(project_id, project["name"])
         return {"status": "ok", "deployment": result}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

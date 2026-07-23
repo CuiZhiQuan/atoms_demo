@@ -11,7 +11,7 @@ HOST = os.getenv("HOST", "0.0.0.0")
 PORT = int(os.getenv("PORT", "8000"))
 
 # Deploy
-VERCEL_TOKEN = os.getenv("VERCEL_TOKEN", "")
+NETLIFY_TOKEN = os.getenv("NETLIFY_TOKEN", "")
 
 # Auth
 JWT_SECRET = os.getenv("JWT_SECRET", "atoms-mvp-dev-secret-change-in-production")

@@ -1,16 +1,16 @@
 # 部署 Atoms MVP 平台
 
-将 Atoms MVP 平台本身部署到线上，采用 **Cloudflare Pages（前端） + Render（后端）**，零成本上线。
+将 Atoms MVP 平台本身部署到线上，采用 **Netlify（前端） + Render（后端）**，零成本上线。
 
 ---
 
 ## 架构
 
 ```
-用户 → Cloudflare Pages (前端) → Render (后端 API)
-       ├─ 自动 HTTPS            ├─ Python FastAPI
-       ├─ 全球 CDN               ├─ SQLite 数据
-       └─ 无限免费额度           └─ 免费额度 750h/月
+用户 → Netlify (前端) → Render (后端 API)
+       ├─ 自动 HTTPS     ├─ Python FastAPI
+       ├─ 全球 CDN        ├─ SQLite 数据
+       └─ 免费额度        └─ 免费额度 750h/月
 ```
 
 ---
@@ -48,24 +48,26 @@
 | `LLM_MODEL` | 默认模型 | `deepseek-v4-flash` |
 | `LLM_RACE_MODELS` | Race 模式模型（逗号分隔） | `deepseek-v4-flash,deepseek-v3` |
 | `JWT_SECRET` | 🔑 JWT 签名密钥（随机字符串） | `a1b2c3d4e5f6...` |
+| `NETLIFY_TOKEN` | Netlify 部署 Token（可选） | `nfp_xxx...` |
+
+> `NETLIFY_TOKEN` 用于一键部署生成的应用到 Netlify，不填则 Deploy 按钮不可用。
 
 > 部署成功后 Render 会分配一个 URL，如 `https://atoms-mvp-backend.onrender.com`，记下来用于下一步。
 
 ---
 
-## 第二步：部署前端到 Cloudflare Pages
+## 第二步：部署前端到 Netlify
 
-1. 打开 [Cloudflare Dashboard](https://dash.cloudflare.com/)，进入 **Workers & Pages**
-2. 点击 **Create** → **Pages** → **Connect to Git**
+1. 打开 [Netlify](https://netlify.com)，用 GitHub 登录
+2. 点击 **Add new site** → **Import an existing project**
 3. 授权并选择 GitHub 仓库 `CuiZhiQuan/atoms_demo`
-4. 配置构建：
+4. 配置构建（`netlify.toml` 会自动填写，检查确认即可）：
 
 | 配置项 | 值 |
 |--------|-----|
-| Production branch | `main` |
+| Base directory | `frontend` |
 | Build command | `npm run build` |
-| Build output directory | `frontend/dist` |
-| Root directory | `frontend` |
+| Publish directory | `dist` |
 
 5. 展开 **Environment Variables**，添加：
 
@@ -75,15 +77,15 @@
 
 > ⚠️ 替换为你的 Render 后端实际地址。
 
-6. 点击 **Save and Deploy**
+6. 点击 **Deploy site**
 
-> Cloudflare Pages 免费额度：无限请求、无限带宽、每月 500 次构建。
+> Netlify 免费额度：100GB 带宽/月，300 分钟构建/月。
 
 ---
 
 ## 第三步：验证
 
-1. 打开 Cloudflare Pages 分配的 URL（如 `https://atoms-mvp.pages.dev`）
+1. 打开 Netlify 分配的 URL（如 `https://atoms-mvp.netlify.app`）
 2. 注册账号 → 输入需求 → 确认 Agent 正常工作
 
 > **注意**：Render 免费版 15 分钟无请求会休眠，首次访问可能有 30 秒冷启动延迟。

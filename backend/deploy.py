@@ -1,103 +1,127 @@
 """
-Deploy generated projects to Vercel.
-Uses Vercel REST API to create a deployment with static files.
-Requires VERCEL_TOKEN environment variable.
+Deploy generated projects to Netlify.
+Uses Netlify REST API to create a site and deploy static files.
+Requires NETLIFY_TOKEN environment variable.
 """
 
 import os
-import base64
+import io
+import zipfile
 import httpx
-from backend.config import PROJECTS_DIR, VERCEL_TOKEN
+from backend.config import PROJECTS_DIR, NETLIFY_TOKEN
 
-VERCEL_API = "https://api.vercel.com"
+NETLIFY_API = "https://api.netlify.com/api/v1"
 
 
-async def deploy_to_vercel(project_id: str, project_name: str) -> dict:
-    """Deploy a project's static files to Vercel.
+async def deploy_to_netlify(project_id: str, project_name: str) -> dict:
+    """Deploy a project's static files to Netlify.
 
     Returns:
-        dict with keys: url, deployment_id, ready_state
+        dict with keys: url, site_id, deploy_id
     """
-    if not VERCEL_TOKEN:
-        raise ValueError("VERCEL_TOKEN is not configured. Add it to your environment variables.")
+    if not NETLIFY_TOKEN:
+        raise ValueError(
+            "NETLIFY_TOKEN is not configured. "
+            "Get one at https://app.netlify.com/user/applications/personal"
+        )
 
     project_dir = os.path.join(PROJECTS_DIR, project_id)
     if not os.path.isdir(project_dir):
         raise FileNotFoundError(f"Project directory not found: {project_dir}")
 
-    # Collect all files and encode as base64
-    files = []
+    # Collect files
+    file_list = []
     for root, _dirs, filenames in os.walk(project_dir):
         for filename in filenames:
             filepath = os.path.join(root, filename)
             relpath = os.path.relpath(filepath, project_dir)
-            with open(filepath, "rb") as f:
-                content = base64.b64encode(f.read()).decode()
-            files.append({"file": relpath, "data": content})
+            file_list.append((filepath, relpath))
 
-    if not files:
+    if not file_list:
         raise ValueError("Project has no files to deploy")
 
-    # Sanitize project name for Vercel (lowercase, alphanumeric + hyphens)
+    # Sanitize project name
     safe_name = "".join(c if c.isalnum() or c == "-" else "-" for c in project_name.lower())
     safe_name = safe_name.strip("-")[:64] or "atoms-app"
 
+    # Create zip in memory
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        for filepath, relpath in file_list:
+            zf.write(filepath, relpath)
+    zip_buffer.seek(0)
+
+    headers = {
+        "Authorization": f"Bearer {NETLIFY_TOKEN}",
+    }
+
     async with httpx.AsyncClient(timeout=60.0) as client:
-        # Step 1: Create deployment
+        # Step 1: Create a new site
         resp = await client.post(
-            f"{VERCEL_API}/v13/deployments",
-            headers={
-                "Authorization": f"Bearer {VERCEL_TOKEN}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "name": safe_name,
-                "files": files,
-                "projectSettings": {"framework": None},
-                "target": "production",
-            },
+            f"{NETLIFY_API}/sites",
+            headers={**headers, "Content-Type": "application/json"},
+            json={"name": safe_name},
         )
 
         if resp.status_code >= 400:
             detail = ""
             try:
-                detail = resp.json().get("error", {}).get("message", resp.text)
+                detail = resp.json().get("message", resp.text)
             except Exception:
                 detail = resp.text
-            raise Exception(f"Vercel API error ({resp.status_code}): {detail}")
+            raise Exception(f"Netlify API error ({resp.status_code}): {detail}")
 
-        data = resp.json()
+        site_data = resp.json()
+        site_id = site_data["id"]
 
-        # Vercel returns the deployment with a URL (no need to wait for aliasing)
-        vercel_url = data.get("url")
-        if vercel_url and not vercel_url.startswith("http"):
-            vercel_url = f"https://{vercel_url}"
+        # Step 2: Deploy the zip file
+        resp = await client.post(
+            f"{NETLIFY_API}/sites/{site_id}/deploys",
+            headers={
+                **headers,
+                "Content-Type": "application/zip",
+            },
+            content=zip_buffer.read(),
+        )
+
+        if resp.status_code >= 400:
+            detail = ""
+            try:
+                detail = resp.json().get("message", resp.text)
+            except Exception:
+                detail = resp.text
+            raise Exception(f"Netlify deploy error ({resp.status_code}): {detail}")
+
+        deploy_data = resp.json()
+        deploy_url = deploy_data.get("ssl_url") or deploy_data.get("url", "")
+        if not deploy_url:
+            deploy_url = f"https://{safe_name}.netlify.app"
 
         return {
-            "url": vercel_url or f"https://{safe_name}.vercel.app",
-            "deployment_id": data.get("id", ""),
-            "ready_state": data.get("readyState", "READY"),
+            "url": deploy_url,
+            "site_id": site_id,
+            "deploy_id": deploy_data.get("id", ""),
             "name": safe_name,
         }
 
 
-async def get_deployment_status(deployment_id: str) -> dict:
-    """Check the status of a Vercel deployment."""
-    if not VERCEL_TOKEN:
-        raise ValueError("VERCEL_TOKEN is not configured")
+async def get_deployment_status(deploy_id: str) -> dict:
+    """Check the status of a Netlify deploy."""
+    if not NETLIFY_TOKEN:
+        raise ValueError("NETLIFY_TOKEN is not configured")
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await client.get(
-            f"{VERCEL_API}/v13/deployments/{deployment_id}",
-            headers={"Authorization": f"Bearer {VERCEL_TOKEN}"},
+            f"{NETLIFY_API}/deploys/{deploy_id}",
+            headers={"Authorization": f"Bearer {NETLIFY_TOKEN}"},
         )
 
         if resp.status_code >= 400:
-            raise Exception(f"Vercel API error: {resp.text}")
+            raise Exception(f"Netlify API error: {resp.text}")
 
         data = resp.json()
         return {
-            "url": f"https://{data['url']}" if not data["url"].startswith("http") else data["url"],
-            "ready_state": data.get("readyState", "UNKNOWN"),
-            "deployment_id": data["id"],
+            "url": data.get("ssl_url") or data.get("url", ""),
+            "state": data.get("state", "unknown"),
+            "deploy_id": data["id"],
         }

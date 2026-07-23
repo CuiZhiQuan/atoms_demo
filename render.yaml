@@ -21,3 +21,5 @@ services:
         value: HS256
       - key: JWT_EXPIRE_MINUTES
         value: "1440"
+      - key: NETLIFY_TOKEN
+        sync: false
