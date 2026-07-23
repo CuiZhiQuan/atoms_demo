@@ -79,9 +79,11 @@ async def run_agent_react(
                         # Ensure buffer has enough slots
                         while len(tool_calls_buffer) <= idx:
                             tool_calls_buffer.append({
-                                "id": "", "function": {"name": "", "arguments": ""}
+                                "id": "", "type": "function", "function": {"name": "", "arguments": ""}
                             })
 
+                        if "type" in tc and tc["type"]:
+                            tool_calls_buffer[idx]["type"] = tc["type"]
                         if "id" in tc and tc["id"]:
                             tool_calls_buffer[idx]["id"] = tc["id"]
                         if "function" in tc:
