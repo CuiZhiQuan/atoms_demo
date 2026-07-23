@@ -6,6 +6,7 @@ export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -14,6 +15,12 @@ export default function AuthPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    if (!isLogin && password !== confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -68,6 +75,22 @@ export default function AuthPage() {
             />
           </div>
 
+          {/* Confirm Password — only in register mode */}
+          {!isLogin && (
+            <div>
+              <label className="block text-xs text-zinc-400 mb-1">Confirm Password</label>
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Re-enter password"
+                required
+                minLength={6}
+                className="w-full px-3 py-2 rounded-lg bg-zinc-800 border border-zinc-700 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-purple-500"
+              />
+            </div>
+          )}
+
           {error && (
             <div className="text-xs text-red-400 bg-red-900/20 px-3 py-2 rounded-lg">
               {error}
@@ -86,7 +109,7 @@ export default function AuthPage() {
         {/* Toggle */}
         <div className="text-center mt-4">
           <button
-            onClick={() => { setIsLogin(!isLogin); setError(''); }}
+            onClick={() => { setIsLogin(!isLogin); setError(''); setConfirmPassword(''); }}
             className="text-sm text-zinc-500 hover:text-purple-400"
           >
             {isLogin ? "Don't have an account? Sign up" : 'Already have an account? Log in'}
