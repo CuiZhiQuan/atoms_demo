@@ -1,7 +1,7 @@
 """
-Deploy generated projects to Netlify.
-Uses Netlify REST API to create a site and deploy static files.
-Requires NETLIFY_TOKEN environment variable.
+Deploy generated projects to Cloudflare Pages.
+Uses Cloudflare REST API to create a Pages project and deploy static files.
+Requires CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID environment variables.
 """
 
 import os
@@ -9,21 +9,26 @@ import io
 import uuid
 import zipfile
 import httpx
-from backend.config import PROJECTS_DIR, NETLIFY_TOKEN
+from backend.config import PROJECTS_DIR, CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID
 
-NETLIFY_API = "https://api.netlify.com/api/v1"
+CLOUDFLARE_API = "https://api.cloudflare.com/client/v4"
 
 
-async def deploy_to_netlify(project_id: str, project_name: str) -> dict:
-    """Deploy a project's static files to Netlify.
+async def deploy_to_cloudflare(project_id: str, project_name: str) -> dict:
+    """Deploy a project's static files to Cloudflare Pages.
 
     Returns:
-        dict with keys: url, site_id, deploy_id
+        dict with keys: url, project_name, deploy_id
     """
-    if not NETLIFY_TOKEN:
+    if not CLOUDFLARE_API_TOKEN:
         raise ValueError(
-            "NETLIFY_TOKEN is not configured. "
-            "Get one at https://app.netlify.com/user/applications/personal"
+            "CLOUDFLARE_API_TOKEN is not configured. "
+            "Get one at https://dash.cloudflare.com/profile/api-tokens"
+        )
+    if not CLOUDFLARE_ACCOUNT_ID:
+        raise ValueError(
+            "CLOUDFLARE_ACCOUNT_ID is not configured. "
+            "Find it at https://dash.cloudflare.com → select your account → copy Account ID"
         )
 
     project_dir = os.path.join(PROJECTS_DIR, project_id)
@@ -51,94 +56,104 @@ async def deploy_to_netlify(project_id: str, project_name: str) -> dict:
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
         for filepath, relpath in file_list:
             zf.write(filepath, relpath)
-        # Inject Netlify config to ensure proper content types
-        zf.writestr("netlify.toml", """
-[[headers]]
-  for = "/*.html"
-  [headers.values]
-    Content-Type = "text/html; charset=utf-8"
-[[headers]]
-  for = "/*.css"
-  [headers.values]
-    Content-Type = "text/css; charset=utf-8"
-[[headers]]
-  for = "/*.js"
-  [headers.values]
-    Content-Type = "application/javascript; charset=utf-8"
+        # Inject Cloudflare Pages _headers for proper content types
+        zf.writestr("_headers", """/*.html
+  Content-Type: text/html; charset=utf-8
+/*.css
+  Content-Type: text/css; charset=utf-8
+/*.js
+  Content-Type: application/javascript; charset=utf-8
 """)
+        # Inject _redirects for SPA fallback (in case the generated app is an SPA)
+        if not any(rel == "_redirects" for _, rel in file_list):
+            zf.writestr("_redirects", "/*    /index.html   200")
     zip_buffer.seek(0)
 
     headers = {
-        "Authorization": f"Bearer {NETLIFY_TOKEN}",
+        "Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}",
     }
 
     async with httpx.AsyncClient(timeout=60.0) as client:
-        # Step 1: Create a new site
+        # Step 1: Create a Cloudflare Pages project
         resp = await client.post(
-            f"{NETLIFY_API}/sites",
+            f"{CLOUDFLARE_API}/accounts/{CLOUDFLARE_ACCOUNT_ID}/pages/projects",
             headers={**headers, "Content-Type": "application/json"},
-            json={"name": safe_name},
-        )
-
-        if resp.status_code >= 400:
-            detail = ""
-            try:
-                detail = resp.json().get("message", resp.text)
-            except Exception:
-                detail = resp.text
-            raise Exception(f"Netlify API error ({resp.status_code}): {detail}")
-
-        site_data = resp.json()
-        site_id = site_data["id"]
-
-        # Step 2: Deploy the zip file
-        resp = await client.post(
-            f"{NETLIFY_API}/sites/{site_id}/deploys",
-            headers={
-                **headers,
-                "Content-Type": "application/zip",
+            json={
+                "name": safe_name,
+                "production_branch": "main",
             },
-            content=zip_buffer.read(),
         )
 
         if resp.status_code >= 400:
-            detail = ""
-            try:
-                detail = resp.json().get("message", resp.text)
-            except Exception:
-                detail = resp.text
-            raise Exception(f"Netlify deploy error ({resp.status_code}): {detail}")
+            detail = _extract_error(resp)
+            raise Exception(f"Cloudflare API error ({resp.status_code}): {detail}")
+
+        project_data = resp.json()
+        cf_project_name = project_data["result"]["name"]
+
+        # Step 2: Deploy via direct upload (multipart form)
+        # Cloudflare Pages supports direct upload deployments
+        zip_buffer.seek(0)
+        resp = await client.post(
+            f"{CLOUDFLARE_API}/accounts/{CLOUDFLARE_ACCOUNT_ID}/pages/projects/{cf_project_name}/deployments",
+            headers={**headers},
+            files={"file": ("deploy.zip", zip_buffer, "application/zip")},
+        )
+
+        if resp.status_code >= 400:
+            detail = _extract_error(resp)
+            raise Exception(f"Cloudflare deploy error ({resp.status_code}): {detail}")
 
         deploy_data = resp.json()
-        deploy_url = deploy_data.get("ssl_url") or deploy_data.get("url", "")
+        result = deploy_data.get("result", {})
+        deploy_url = result.get("url", "")
         if not deploy_url:
-            deploy_url = f"https://{safe_name}.netlify.app"
+            subdomain = result.get("subdomain", cf_project_name)
+            deploy_url = f"https://{subdomain}.pages.dev"
 
         return {
             "url": deploy_url,
-            "site_id": site_id,
-            "deploy_id": deploy_data.get("id", ""),
-            "name": safe_name,
+            "project_name": cf_project_name,
+            "deploy_id": result.get("id", ""),
+            "ready_state": result.get("latest_stage", {}).get("name", "deploying"),
         }
 
 
-async def get_deployment_status(deploy_id: str) -> dict:
-    """Check the status of a Netlify deploy."""
-    if not NETLIFY_TOKEN:
-        raise ValueError("NETLIFY_TOKEN is not configured")
+async def get_deployment_status(deploy_id: str, project_name: str) -> dict:
+    """Check the status of a Cloudflare Pages deploy."""
+    if not CLOUDFLARE_API_TOKEN or not CLOUDFLARE_ACCOUNT_ID:
+        raise ValueError("CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID are required")
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await client.get(
-            f"{NETLIFY_API}/deploys/{deploy_id}",
-            headers={"Authorization": f"Bearer {NETLIFY_TOKEN}"},
+            f"{CLOUDFLARE_API}/accounts/{CLOUDFLARE_ACCOUNT_ID}/pages/projects/{project_name}/deployments/{deploy_id}",
+            headers={"Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}"},
         )
 
         if resp.status_code >= 400:
-            raise Exception(f"Netlify API error: {resp.text}")
+            raise Exception(f"Cloudflare API error: {resp.text}")
 
         data = resp.json()
+        result = data.get("result", {})
+        deploy_url = result.get("url", "")
+        if not deploy_url:
+            subdomain = result.get("subdomain", project_name)
+            deploy_url = f"https://{subdomain}.pages.dev"
+
         return {
-            "url": data.get("ssl_url") or data.get("url", ""),
-            "state": data.get("state", "unknown"),
-            "deploy_id": data["id"],
+            "url": deploy_url,
+            "state": result.get("latest_stage", {}).get("status", "unknown"),
+            "deploy_id": result.get("id", ""),
         }
+
+
+def _extract_error(resp: httpx.Response) -> str:
+    """Extract error message from Cloudflare API response."""
+    try:
+        body = resp.json()
+        errors = body.get("errors", [])
+        if errors:
+            return errors[0].get("message", resp.text)
+        return body.get("message", resp.text)
+    except Exception:
+        return resp.text

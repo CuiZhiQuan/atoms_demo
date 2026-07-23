@@ -13,7 +13,7 @@
 | 🔐 **用户认证** | JWT 注册/登录，密码二次确认，多用户项目隔离 |
 | 👁️ **实时预览** | 桌面端/移动端双视图切换，生成中显示加载动画，生成完自动刷新 |
 | 📂 **源码查看** | 内置文件树 + 语法高亮，可查看生成的所有源文件 |
-| 🚀 **一键部署** | 将生成的应用一键部署到 Netlify，获得公开 URL |
+| 🚀 **一键部署** | 将生成的应用一键部署到 Cloudflare Pages，获得公开 URL |
 | 🔄 **SSE 流式推送** | Agent 状态、工具调用、文件变更实时展示 |
 
 ---
@@ -103,11 +103,11 @@ Agent 生成代码后，右侧预览区自动展示应用效果：
 
 Agent 生成应用后，点击 **🚀 Deploy** 按钮：
 
-1. 后端自动将项目文件打包上传到 Netlify
+1. 后端自动将项目文件打包上传到 Cloudflare Pages
 2. 部署成功后底部显示线上 URL
 3. 点击 📋 一键复制链接
 
-> 前提：后端需配置 `NETLIFY_TOKEN` 环境变量，详见 [DEPLOY_APP.md](DEPLOY_APP.md)。
+> 前提：后端需配置 `CLOUDFLARE_API_TOKEN` 和 `CLOUDFLARE_ACCOUNT_ID` 环境变量，详见 [DEPLOY_APP.md](DEPLOY_APP.md)。
 
 ---
 
@@ -174,7 +174,8 @@ Agent 生成应用后，点击 **🚀 Deploy** 按钮：
 | `JWT_SECRET` | 🔑 JWT 签名密钥 | `随机字符串` |
 | `JWT_ALGORITHM` | JWT 加密算法 | `HS256` |
 | `JWT_EXPIRE_MINUTES` | Token 过期时间（分钟） | `1440` |
-| `NETLIFY_TOKEN` | Netlify 部署 Token（可选） | `nfp_xxx` |
+| `CLOUDFLARE_API_TOKEN` | Cloudflare API Token（用于部署生成的应用） | `...` |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare Account ID | `...` |
 | `HOST` | 服务监听地址 | `0.0.0.0` |
 | `PORT` | 服务端口 | `8000` |
 
@@ -206,7 +207,7 @@ Agent 生成应用后，点击 **🚀 Deploy** 按钮：
 | `/api/projects` | POST | 创建新项目（需 Token） |
 | `/api/projects/{id}` | DELETE | 删除项目（需 Token） |
 | `/api/projects/{id}/files` | GET | 获取项目源码文件（需 Token） |
-| `/api/projects/{id}/deploy` | POST | 一键部署到 Netlify（需 Token） |
+| `/api/projects/{id}/deploy` | POST | 一键部署到 Cloudflare Pages（需 Token） |
 
 ### Race
 
@@ -222,13 +223,13 @@ Agent 生成应用后，点击 **🚀 Deploy** 按钮：
 ### 平台部署
 
 - **后端**：Render（Free 计划，750 小时/月）
-- **前端**：Netlify（Free 计划，100GB 带宽/月）
+- **前端**：Cloudflare Pages（Free 计划，无限带宽）
 
 详见 [DEPLOY.md](DEPLOY.md)。
 
 ### 应用部署
 
-生成的应用可一键部署到 Netlify，详见 [DEPLOY_APP.md](DEPLOY_APP.md)。
+生成的应用可一键部署到 Cloudflare Pages，详见 [DEPLOY_APP.md](DEPLOY_APP.md)。
 
 ---
 
@@ -240,7 +241,7 @@ atoms_demo/
 │   ├── agents/          # 4 个 Agent 实现
 │   ├── api/             # FastAPI 路由
 │   ├── orchestrator/    # 编排器（ReAct 循环 + 3 种模式）
-│   ├── deploy.py        # Netlify 部署逻辑
+│   ├── deploy.py        # Cloudflare Pages 部署逻辑
 │   ├── config.py        # 配置管理
 │   ├── db.py            # SQLite 数据库
 │   ├── llm.py           # LiteLLM 客户端
@@ -260,7 +261,6 @@ atoms_demo/
 ├── AGENTS.md            # Agent 系统文档
 ├── DEPLOY.md            # 平台部署指南
 ├── DEPLOY_APP.md        # 应用部署指南
-├── netlify.toml         # Netlify 配置
 ├── render.yaml          # Render Blueprint 配置
 └── README.md
 ```

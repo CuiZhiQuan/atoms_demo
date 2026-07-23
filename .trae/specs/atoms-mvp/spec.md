@@ -13,10 +13,10 @@
 - **新增** 项目持久化（SQLite 存元数据 + 用户数据，文件系统存项目代码）
 - **新增** LiteLLM 集成，支持 OpenAI 协议多模型（OpenAI/DeepSeek/智谱/Claude 等）
 - **新增** JWT 用户认证（注册/登录/密码二次确认，多用户项目隔离）
-- **新增** 一键部署到 Netlify（打包 zip + 自动注入 content-type 配置）
+- **新增** 一键部署到 Cloudflare Pages（打包 zip + 自动注入 content-type 配置）
 - **新增** 源码查看功能（文件树 + 语法高亮）
 - **新增** `.env` 配置 + 本地直接启动（`uvicorn` + `npm run dev`）
-- **新增** 平台部署指南（Netlify 前端 + Render 后端）
+- **新增** 平台部署指南（Cloudflare Pages 前端 + Render 后端）
 
 标记为 **非本期范围**（TODO）：
 - App World 分享、社交分享
@@ -34,7 +34,7 @@
   - `frontend/`（Vite + React 应用）
   - `data/`（运行期生成，SQLite + 项目代码）
   - `backend/.env.example`（环境变量模板）
-  - `netlify.toml`（前端部署配置）
+  - `frontend/public/_headers`（Cloudflare Pages 缓存配置）
   - `render.yaml`（后端部署配置）
   - `README.md`（使用说明）
   - `AGENTS.md`（Agent 系统文档）
@@ -170,13 +170,13 @@
 - **AND** 路径限制在项目目录内
 - **AND** 单次执行超时 60 秒
 
-### Requirement: 一键部署到 Netlify
-系统 SHALL 支持将生成的应用一键部署到 Netlify。
+### Requirement: 一键部署到 Cloudflare Pages
+系统 SHALL 支持将生成的应用一键部署到 Cloudflare Pages。
 
 #### Scenario: 部署流程
 - **WHEN** 用户点击 Deploy 按钮
-- **THEN** 后端将项目文件打包为 zip，通过 Netlify API 创建站点并部署
-- **AND** zip 中自动注入 `netlify.toml` 确保正确的 Content-Type 头
+- **THEN** 后端将项目文件打包为 zip，通过 Cloudflare API 创建 Pages 项目并部署
+- **AND** zip 中自动注入 `_headers` 确保正确的 Content-Type 头
 - **AND** 返回线上 URL，用户可点击访问
 
 ### Requirement: 本地启动
@@ -194,8 +194,8 @@
 - **WHEN** 用户首次克隆项目
 - **THEN** 复制 `backend/.env.example` 为 `.env` 并填入 LLM API Key
 - **AND** README 包含：技术栈介绍、快速启动、模式说明、API 接口、配置参考
-- **AND** DEPLOY.md 包含平台部署指南（Netlify + Render）
-- **AND** DEPLOY_APP.md 包含应用部署指南（Netlify Token 获取）
+- **AND** DEPLOY.md 包含平台部署指南（Cloudflare Pages + Render）
+- **AND** DEPLOY_APP.md 包含应用部署指南（Cloudflare API Token 获取）
 
 ---
 

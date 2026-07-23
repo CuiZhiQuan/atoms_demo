@@ -19,7 +19,7 @@ from backend.db import (
 )
 from backend.config import PROJECTS_DIR
 from backend.auth import hash_password, verify_password, create_token, get_current_user
-from backend.deploy import deploy_to_netlify, get_deployment_status
+from backend.deploy import deploy_to_cloudflare
 from backend.memory import save_message
 
 router = APIRouter(prefix="/api")
@@ -240,7 +240,7 @@ async def select_race_result(race_id: str, req: SelectRaceRequest, user_id: str 
 
 @router.post("/projects/{project_id}/deploy")
 async def deploy_project(project_id: str, user_id: str = Depends(get_current_user)):
-    """Deploy a project's generated app to Vercel."""
+    """Deploy a project's generated app to Cloudflare Pages."""
     project = await get_project(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -249,7 +249,7 @@ async def deploy_project(project_id: str, user_id: str = Depends(get_current_use
         raise HTTPException(status_code=403, detail="Not authorized")
 
     try:
-        result = await deploy_to_netlify(project_id, project["name"])
+        result = await deploy_to_cloudflare(project_id, project["name"])
         return {"status": "ok", "deployment": result}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

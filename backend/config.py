@@ -10,8 +10,9 @@ LLM_RACE_MODELS = os.getenv("LLM_RACE_MODELS", "")
 HOST = os.getenv("HOST", "0.0.0.0")
 PORT = int(os.getenv("PORT", "8000"))
 
-# Deploy
-NETLIFY_TOKEN = os.getenv("NETLIFY_TOKEN", "")
+# Deploy (Cloudflare Pages)
+CLOUDFLARE_API_TOKEN = os.getenv("CLOUDFLARE_API_TOKEN", "")
+CLOUDFLARE_ACCOUNT_ID = os.getenv("CLOUDFLARE_ACCOUNT_ID", "")
 
 # Auth
 JWT_SECRET = os.getenv("JWT_SECRET", "atoms-mvp-dev-secret-change-in-production")

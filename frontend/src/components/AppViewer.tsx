@@ -126,7 +126,7 @@ export default function AppViewer() {
                     ? 'bg-purple-600/50 text-white cursor-wait'
                     : 'bg-purple-600 hover:bg-purple-500 text-white'
               }`}
-              title="Deploy to Netlify"
+              title="Deploy to Cloudflare"
             >
               {deploying ? '⏳ Deploying...' : deployUrl ? '✅ Deployed' : '🚀 Deploy'}
             </button>
