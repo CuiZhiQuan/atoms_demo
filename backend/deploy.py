@@ -1,18 +1,28 @@
 """
 Deploy generated projects to Cloudflare Pages.
-Uses Cloudflare REST API to create a Pages project and deploy static files.
+Uses Cloudflare REST API for direct upload: create project → send manifest + files.
 Requires CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID environment variables.
 """
 
 import os
-import io
 import re
+import json
 import uuid
-import zipfile
+import hashlib
 import httpx
 from backend.config import PROJECTS_DIR, CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID
 
 CLOUDFLARE_API = "https://api.cloudflare.com/client/v4"
+
+# Injected config files for Cloudflare Pages
+_HEADERS_CONTENT = """/*.html
+  Content-Type: text/html; charset=utf-8
+/*.css
+  Content-Type: text/css; charset=utf-8
+/*.js
+  Content-Type: application/javascript; charset=utf-8
+"""
+_REDIRECTS_CONTENT = "/*    /index.html   200"
 
 
 async def deploy_to_cloudflare(project_id: str, project_name: str) -> dict:
@@ -36,56 +46,55 @@ async def deploy_to_cloudflare(project_id: str, project_name: str) -> dict:
     if not os.path.isdir(project_dir):
         raise FileNotFoundError(f"Project directory not found: {project_dir}")
 
-    # Collect files
-    file_list = []
+    # Collect files and build manifest
+    manifest = {}
+    file_contents: dict[str, bytes] = {}
+
+    has_redirects = False
     for root, _dirs, filenames in os.walk(project_dir):
         for filename in filenames:
             filepath = os.path.join(root, filename)
             relpath = os.path.relpath(filepath, project_dir)
-            file_list.append((filepath, relpath))
+            with open(filepath, "rb") as f:
+                content = f.read()
+            sha = hashlib.sha256(content).hexdigest()
+            manifest[f"/{relpath}"] = {"hash": f"sha256-{sha}", "size": len(content)}
+            file_contents[relpath] = content
+            if relpath == "_redirects":
+                has_redirects = True
 
-    if not file_list:
+    if not file_contents:
         raise ValueError("Project has no files to deploy")
+
+    # Inject _headers for proper content types
+    headers_bytes = _HEADERS_CONTENT.encode("utf-8")
+    sha = hashlib.sha256(headers_bytes).hexdigest()
+    manifest["/_headers"] = {"hash": f"sha256-{sha}", "size": len(headers_bytes)}
+    file_contents["_headers"] = headers_bytes
+
+    # Inject _redirects for SPA fallback (if not already present)
+    if not has_redirects:
+        redirects_bytes = _REDIRECTS_CONTENT.encode("utf-8")
+        sha = hashlib.sha256(redirects_bytes).hexdigest()
+        manifest["/_redirects"] = {"hash": f"sha256-{sha}", "size": len(redirects_bytes)}
+        file_contents["_redirects"] = redirects_bytes
 
     # Sanitize project name + random suffix to avoid collisions
     # Cloudflare Pages: 1-58 lowercase chars + dashes, no leading/trailing dash
-    safe_name = re.sub(r'[^a-z0-9-]', '-', project_name.lower())  # replace non-[a-z0-9-] with dash
-    safe_name = re.sub(r'-+', '-', safe_name)                      # collapse consecutive dashes
-    safe_name = safe_name.strip('-')                                # remove leading/trailing dashes
-    safe_name = safe_name[:51] or "atoms-app"                       # max 51 (leaving 7 for -{uuid})
+    safe_name = re.sub(r'[^a-z0-9-]', '-', project_name.lower())
+    safe_name = re.sub(r'-+', '-', safe_name)
+    safe_name = safe_name.strip('-')
+    safe_name = safe_name[:51] or "atoms-app"
     safe_name = f"{safe_name}-{uuid.uuid4().hex[:6]}"
 
-    # Create zip in memory
-    zip_buffer = io.BytesIO()
-    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-        for filepath, relpath in file_list:
-            zf.write(filepath, relpath)
-        # Inject Cloudflare Pages _headers for proper content types
-        zf.writestr("_headers", """/*.html
-  Content-Type: text/html; charset=utf-8
-/*.css
-  Content-Type: text/css; charset=utf-8
-/*.js
-  Content-Type: application/javascript; charset=utf-8
-""")
-        # Inject _redirects for SPA fallback (in case the generated app is an SPA)
-        if not any(rel == "_redirects" for _, rel in file_list):
-            zf.writestr("_redirects", "/*    /index.html   200")
-    zip_buffer.seek(0)
-
-    headers = {
-        "Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}",
-    }
+    auth_headers = {"Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}"}
 
     async with httpx.AsyncClient(timeout=60.0) as client:
         # Step 1: Create a Cloudflare Pages project
         resp = await client.post(
             f"{CLOUDFLARE_API}/accounts/{CLOUDFLARE_ACCOUNT_ID}/pages/projects",
-            headers={**headers, "Content-Type": "application/json"},
-            json={
-                "name": safe_name,
-                "production_branch": "main",
-            },
+            headers={**auth_headers, "Content-Type": "application/json"},
+            json={"name": safe_name, "production_branch": "main"},
         )
 
         if resp.status_code >= 400:
@@ -95,13 +104,18 @@ async def deploy_to_cloudflare(project_id: str, project_name: str) -> dict:
         project_data = resp.json()
         cf_project_name = project_data["result"]["name"]
 
-        # Step 2: Deploy via direct upload (multipart form)
-        # Cloudflare Pages supports direct upload deployments
-        zip_buffer.seek(0)
+        # Step 2: Deploy via direct upload (manifest + files as multipart)
+        # manifest is sent as a form field (filename=None), files are sent as file uploads
+        files_payload = [
+            ("manifest", (None, json.dumps(manifest, separators=(',', ':')), "application/json")),
+        ]
+        for relpath, content in file_contents.items():
+            files_payload.append((relpath, (relpath, content)))
+
         resp = await client.post(
             f"{CLOUDFLARE_API}/accounts/{CLOUDFLARE_ACCOUNT_ID}/pages/projects/{cf_project_name}/deployments",
-            headers={**headers},
-            files={"file": ("deploy.zip", zip_buffer, "application/zip")},
+            headers={**auth_headers},
+            files=files_payload,
         )
 
         if resp.status_code >= 400:
