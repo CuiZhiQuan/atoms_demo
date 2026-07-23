@@ -11,6 +11,19 @@ from backend.orchestrator.runner import run_agent_react
 from backend.sse import session_start, session_end, message_event, error_event, done_event
 from backend.config import LLM_MODEL, LLM_RACE_MODELS
 from backend.memory import load_messages, save_message
+from backend.db import update_race_session
+
+
+def _save_in_background(project_id: str, prompt: str, final_response: str):
+    """Save conversation turn to history without blocking the SSE stream."""
+    async def _save():
+        try:
+            await save_message(project_id, "user", prompt)
+            if final_response:
+                await save_message(project_id, "agent", final_response[:2000])
+        except Exception:
+            pass  # Never let history save failures affect the user
+    asyncio.create_task(_save())
 
 
 async def engineer_mode(
@@ -23,27 +36,25 @@ async def engineer_mode(
     Engineer mode: single agent (Alex) directly generates code.
     Loads previous conversation history for cross-turn context.
     """
-    # Load conversation history for context
-    history = await load_messages(project_id, limit=20)
-
+    # Send session_start IMMEDIATELY so the SSE connection is established
+    # before any potentially slow I/O (like load_messages on cold disks)
     yield session_start(session_id, project_id, "engineer")
     yield message_event(f"🚀 Engineer Mode: Alex is coding...")
+
+    # Load conversation history for context
+    history = await load_messages(project_id, limit=20)
 
     agent = get_agent("engineer")
     final_response = ""
     async for event in run_agent_react(agent, prompt, project_id, model=model, history=history):
         if isinstance(event, str):
             final_response = event
-        else:
-            yield event
-
-    # Save this turn to conversation history
-    await save_message(project_id, "user", prompt)
-    if final_response:
-        await save_message(project_id, "agent", final_response[:2000])
+        yield event  # Forward all events to keep SSE connection alive
 
     yield done_event(project_id)
     yield session_end(session_id)
+
+    _save_in_background(project_id, prompt, final_response)
 
 
 async def team_mode(
@@ -56,11 +67,12 @@ async def team_mode(
     Team mode: 4-agent pipeline (team_lead → pm → architect → engineer).
     Loads previous conversation history for cross-turn context.
     """
-    # Load conversation history for context
-    history = await load_messages(project_id, limit=20)
-
+    # Send session_start IMMEDIATELY so the SSE connection is established
     yield session_start(session_id, project_id, "team")
     yield message_event("🤝 Team Mode: 4 agents collaborating...")
+
+    # Load conversation history for context
+    history = await load_messages(project_id, limit=20)
 
     pipeline = ["team_lead", "pm", "architect", "engineer"]
     context = ""
@@ -87,16 +99,12 @@ async def team_mode(
                 context = event
                 if agent_name == "engineer":
                     final_result = event
-            else:
-                yield event
-
-    # Save this turn to conversation history
-    await save_message(project_id, "user", prompt)
-    if final_result:
-        await save_message(project_id, "agent", final_result[:2000])
+            yield event  # Forward all events to keep SSE connection alive
 
     yield done_event(project_id)
     yield session_end(session_id)
+
+    _save_in_background(project_id, prompt, final_result)
 
 
 async def race_mode(
@@ -110,11 +118,12 @@ async def race_mode(
     Race mode: parallel execution with multiple LLMs, user picks the best result.
     Loads previous conversation history for cross-turn context.
     """
-    # Load conversation history for context
-    history = await load_messages(project_id, limit=20)
-
+    # Send session_start IMMEDIATELY so the SSE connection is established
     yield session_start(session_id, project_id, "race")
     yield message_event("🏁 Race Mode: 3 AI models competing...")
+
+    # Load conversation history for context
+    history = await load_messages(project_id, limit=20)
 
     # Determine race models
     race_models = [LLM_MODEL]
@@ -172,6 +181,7 @@ async def race_mode(
             "model": r["model"],
             "project_id": r["project_id"],
             "summary": final_content[:200] if final_content else "",
+            "full_content": final_content[:2000] if final_content else "",
         })
 
     yield {
@@ -180,8 +190,10 @@ async def race_mode(
         "timestamp": 0,
     }
 
-    # Save this turn to conversation history
-    await save_message(project_id, "user", prompt)
+    # Persist race results so select_race_result can access them
+    await update_race_session(race_id, results=json.dumps(race_results))
 
     yield done_event(project_id)
     yield session_end(session_id)
+
+    _save_in_background(project_id, prompt, "")

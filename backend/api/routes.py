@@ -20,6 +20,7 @@ from backend.db import (
 from backend.config import PROJECTS_DIR
 from backend.auth import hash_password, verify_password, create_token, get_current_user
 from backend.deploy import deploy_to_netlify, get_deployment_status
+from backend.memory import save_message
 
 router = APIRouter(prefix="/api")
 
@@ -227,6 +228,11 @@ async def select_race_result(race_id: str, req: SelectRaceRequest, user_id: str 
                 shutil.rmtree(race_path, ignore_errors=True)
 
     await update_race_session(race_id, selected_id=str(req.selected_idx))
+
+    # Save the selected agent response to conversation history
+    if selected and selected.get("full_content"):
+        await save_message(session["project_id"], "agent", selected["full_content"])
+
     return {"status": "ok", "selected": selected}
 
 
