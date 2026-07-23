@@ -59,12 +59,32 @@ export default function ChatPanel() {
         }
         break;
 
-      case 'tool_call':
-        addMessage({
-          role: 'system',
-          content: `🔧 ${payload.tool}: ${JSON.stringify(payload.arguments)}`,
-        });
+      case 'tool_call': {
+        // Skip internal tools that are not meaningful to the user
+        const internalTools = ['read_file', 'list_dir'];
+        const toolName = payload.tool as string;
+        if (internalTools.includes(toolName)) break;
+
+        let toolMsg = `🔧 ${toolName}`;
+        const args = payload.arguments as Record<string, unknown> | undefined;
+        if (args) {
+          if (toolName === 'write_file') {
+            // Show only path + content size, not the full file content
+            const path = args.path as string || '';
+            const content = (args.content as string) || '';
+            const sizeKB = (new Blob([content]).size / 1024).toFixed(1);
+            toolMsg = `📄 Creating ${path} (${sizeKB} KB)`;
+          } else if (toolName === 'run_shell') {
+            const cmd = args.command as string || '';
+            toolMsg = `💻 Running: ${cmd.length > 80 ? cmd.slice(0, 80) + '...' : cmd}`;
+          } else {
+            toolMsg += `: ${JSON.stringify(args)}`;
+          }
+        }
+
+        addMessage({ role: 'system', content: toolMsg });
         break;
+      }
 
       case 'tool_result':
         // Tool results are usually verbose, skip or show compact
