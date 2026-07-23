@@ -39,8 +39,8 @@ async def write_file(project_id: str, path: str, content: str) -> dict:
     return {"status": "ok", "path": path, "size": len(content)}
 
 
-async def read_file(project_id: str, path: str) -> dict:
-    """Read a file from the project directory."""
+async def read_file(project_id: str, path: str, offset: int = 0, limit: int = -1) -> dict:
+    """Read a file from the project directory. Supports offset/limit for large files."""
     full_path = _resolve_path(project_id, path)
     if not os.path.exists(full_path):
         return {"status": "error", "message": f"File not found: {path}"}
@@ -48,7 +48,12 @@ async def read_file(project_id: str, path: str) -> dict:
     async with __import__("aiofiles").open(full_path, "r", encoding="utf-8") as f:
         content = await f.read()
 
-    return {"status": "ok", "path": path, "content": content}
+    if limit > 0:
+        content = content[offset:offset + limit]
+    elif offset > 0:
+        content = content[offset:]
+
+    return {"status": "ok", "path": path, "content": content, "total_size": len(content)}
 
 
 async def list_dir(project_id: str, path: str = ".") -> dict:
@@ -139,13 +144,21 @@ def get_tool_definitions() -> list:
             "type": "function",
             "function": {
                 "name": "read_file",
-                "description": "Read the contents of a file in the project.",
+                "description": "Read the contents of a file in the project. Use offset/limit for large files.",
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "path": {
                             "type": "string",
                             "description": "Relative path to the file to read",
+                        },
+                        "offset": {
+                            "type": "integer",
+                            "description": "Line or character offset to start reading from (default: 0)",
+                        },
+                        "limit": {
+                            "type": "integer",
+                            "description": "Maximum number of characters to read (default: -1 = all)",
                         },
                     },
                     "required": ["path"],
