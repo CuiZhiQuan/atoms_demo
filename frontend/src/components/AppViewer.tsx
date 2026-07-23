@@ -3,6 +3,8 @@ import { useChatStore } from '../store/chatStore';
 import { deployProject } from '../api/sse';
 import SourceViewer from './SourceViewer';
 
+const RAW_BASE = import.meta.env.VITE_API_URL || '';
+
 export default function AppViewer() {
   const { currentProjectId, viewerRefreshKey } = useChatStore();
   const [viewMode, setViewMode] = useState<'desktop' | 'mobile'>('desktop');
@@ -46,7 +48,7 @@ export default function AppViewer() {
   }, [viewerRefreshKey, refreshIframe]);
 
   const previewUrl = currentProjectId
-    ? `/workspace/${currentProjectId}/index.html`
+    ? `${RAW_BASE}/workspace/${currentProjectId}/index.html`
     : null;
 
   if (!currentProjectId) {
