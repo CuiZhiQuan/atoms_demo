@@ -6,6 +6,7 @@ Requires CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID environment variables.
 
 import os
 import io
+import re
 import uuid
 import zipfile
 import httpx
@@ -47,8 +48,11 @@ async def deploy_to_cloudflare(project_id: str, project_name: str) -> dict:
         raise ValueError("Project has no files to deploy")
 
     # Sanitize project name + random suffix to avoid collisions
-    safe_name = "".join(c if c.isalnum() or c == "-" else "-" for c in project_name.lower())
-    safe_name = safe_name.strip("-")[:32] or "atoms-app"
+    # Cloudflare Pages: 1-58 lowercase chars + dashes, no leading/trailing dash
+    safe_name = re.sub(r'[^a-z0-9-]', '-', project_name.lower())  # replace non-[a-z0-9-] with dash
+    safe_name = re.sub(r'-+', '-', safe_name)                      # collapse consecutive dashes
+    safe_name = safe_name.strip('-')                                # remove leading/trailing dashes
+    safe_name = safe_name[:51] or "atoms-app"                       # max 51 (leaving 7 for -{uuid})
     safe_name = f"{safe_name}-{uuid.uuid4().hex[:6]}"
 
     # Create zip in memory
