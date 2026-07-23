@@ -6,7 +6,7 @@ import SourceViewer from './SourceViewer';
 const RAW_BASE = import.meta.env.VITE_API_URL || '';
 
 export default function AppViewer() {
-  const { currentProjectId, viewerRefreshKey } = useChatStore();
+  const { currentProjectId, viewerRefreshKey, isRunning } = useChatStore();
   const [viewMode, setViewMode] = useState<'desktop' | 'mobile'>('desktop');
   const [showSource, setShowSource] = useState(false);
   const [deploying, setDeploying] = useState(false);
@@ -66,23 +66,25 @@ export default function AppViewer() {
       {/* Toolbar */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-800 bg-zinc-900/50">
         <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-green-500" />
+          <span className={`w-2 h-2 rounded-full ${isRunning ? 'bg-yellow-500 animate-pulse' : 'bg-green-500'}`} />
           <span className="text-xs text-zinc-400">
-            {showSource ? 'Source Code' : 'Preview'}
+            {showSource ? 'Source Code' : isRunning ? 'Generating...' : 'Preview'}
           </span>
         </div>
         <div className="flex items-center gap-1">
-          <button
-            onClick={() => setShowSource(!showSource)}
-            className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
-              showSource
-                ? 'bg-amber-600/20 text-amber-400 border border-amber-500/30'
-                : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'
-            }`}
-          >
-            {showSource ? '👁️ Preview' : '<> Source'}
-          </button>
-          {!showSource && (
+          {!isRunning && (
+            <button
+              onClick={() => setShowSource(!showSource)}
+              className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
+                showSource
+                  ? 'bg-amber-600/20 text-amber-400 border border-amber-500/30'
+                  : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'
+              }`}
+            >
+              {showSource ? '👁️ Preview' : '<> Source'}
+            </button>
+          )}
+          {!showSource && !isRunning && (
             <>
               <button
                 onClick={() => setViewMode('desktop')}
@@ -113,20 +115,22 @@ export default function AppViewer() {
               </button>
             </>
           )}
-          <button
-            onClick={handleDeploy}
-            disabled={deploying}
-            className={`px-3 py-0.5 rounded text-xs font-medium ml-2 transition-colors ${
-              deployUrl
-                ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30'
-                : deploying
-                  ? 'bg-purple-600/50 text-white cursor-wait'
-                  : 'bg-purple-600 hover:bg-purple-500 text-white'
-            }`}
-            title="Deploy to Vercel"
-          >
-            {deploying ? '⏳ Deploying...' : deployUrl ? '✅ Deployed' : '🚀 Deploy'}
-          </button>
+          {!isRunning && (
+            <button
+              onClick={handleDeploy}
+              disabled={deploying}
+              className={`px-3 py-0.5 rounded text-xs font-medium ml-2 transition-colors ${
+                deployUrl
+                  ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30'
+                  : deploying
+                    ? 'bg-purple-600/50 text-white cursor-wait'
+                    : 'bg-purple-600 hover:bg-purple-500 text-white'
+              }`}
+              title="Deploy to Vercel"
+            >
+              {deploying ? '⏳ Deploying...' : deployUrl ? '✅ Deployed' : '🚀 Deploy'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -137,6 +141,11 @@ export default function AppViewer() {
             projectId={currentProjectId}
             onClose={() => setShowSource(false)}
           />
+        ) : isRunning ? (
+          <div className="flex-1 flex flex-col items-center justify-center bg-zinc-950 p-2 h-full gap-3">
+            <div className="animate-spin w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full" />
+            <p className="text-sm text-zinc-400">Generating app...</p>
+          </div>
         ) : (
           <div className="flex-1 flex items-center justify-center bg-zinc-950 p-2 h-full">
             <div
