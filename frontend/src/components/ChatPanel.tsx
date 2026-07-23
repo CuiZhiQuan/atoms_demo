@@ -6,7 +6,7 @@ import type { SSEEvent } from '../api/sse';
 
 export default function ChatPanel() {
   const {
-    messages, addMessage, mode, currentProjectId,
+    messages, addMessage, mode,
     isRunning, setRunning, setActiveAgent, appendThought, clearThoughts,
     triggerViewerRefresh, setRaceResults, reset, refreshProjects, setCurrentProject,
   } = useChatStore();
