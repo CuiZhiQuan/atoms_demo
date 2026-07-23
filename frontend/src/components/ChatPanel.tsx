@@ -113,6 +113,7 @@ export default function ChatPanel() {
         clearThoughts();
         triggerViewerRefresh();
         refreshProjects();
+        setCurrentProject(null);
         break;
     }
   };
