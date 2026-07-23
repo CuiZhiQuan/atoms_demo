@@ -6,6 +6,7 @@ Requires NETLIFY_TOKEN environment variable.
 
 import os
 import io
+import uuid
 import zipfile
 import httpx
 from backend.config import PROJECTS_DIR, NETLIFY_TOKEN
@@ -40,9 +41,10 @@ async def deploy_to_netlify(project_id: str, project_name: str) -> dict:
     if not file_list:
         raise ValueError("Project has no files to deploy")
 
-    # Sanitize project name
+    # Sanitize project name + random suffix to avoid collisions
     safe_name = "".join(c if c.isalnum() or c == "-" else "-" for c in project_name.lower())
-    safe_name = safe_name.strip("-")[:64] or "atoms-app"
+    safe_name = safe_name.strip("-")[:32] or "atoms-app"
+    safe_name = f"{safe_name}-{uuid.uuid4().hex[:6]}"
 
     # Create zip in memory
     zip_buffer = io.BytesIO()
