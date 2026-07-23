@@ -13,7 +13,7 @@ export interface SSEEvent {
 
 // Dev: proxied by Vite to localhost:8000
 // Prod: set VITE_API_URL in Vercel dashboard to https://your-backend.onrender.com
-const API_BASE = import.meta.env.VITE_API_URL || '/api';
+const API_BASE = (import.meta.env.VITE_API_URL || '') + '/api';
 
 function authHeaders(): Record<string, string> {
   const token = getToken();
