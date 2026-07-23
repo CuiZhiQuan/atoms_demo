@@ -39,18 +39,18 @@
 | Start Command | `uvicorn backend.main:app --host 0.0.0.0 --port $PORT` |
 | Plan | Free |
 
-### 环境变量
+## 环境变量
 
 | 变量名 | 说明 | 示例值 |
 |--------|------|--------|
 | `LLM_API_KEY` | 🔑 LLM API 密钥 | `sk-xxx` |
 | `LLM_BASE_URL` | LLM API 地址 | `https://api.deepseek.com` |
 | `LLM_MODEL` | 默认模型 | `deepseek-v4-flash` |
-| `LLM_RACE_MODELS` | Race 模式模型（逗号分隔） | `deepseek-v4-flash,deepseek-v3` |
+| `LLM_RACE_MODELS` | Race 模式额外模型（逗号分隔） | `deepseek-v3,deepseek-chat` |
 | `JWT_SECRET` | 🔑 JWT 签名密钥（随机字符串） | `a1b2c3d4e5f6...` |
-| `NETLIFY_TOKEN` | Netlify 部署 Token（可选） | `nfp_xxx...` |
+| `NETLIFY_TOKEN` | Netlify 部署 Token（可选，用于发布生成的应用） | `nfp_xxx...` |
 
-> `NETLIFY_TOKEN` 用于一键部署生成的应用到 Netlify，不填则 Deploy 按钮不可用。
+> `NETLIFY_TOKEN` 用于一键部署生成的应用到 Netlify，不填则前端 Deploy 按钮会报错。
 
 > 部署成功后 Render 会分配一个 URL，如 `https://atoms-mvp-backend.onrender.com`，记下来用于下一步。
 

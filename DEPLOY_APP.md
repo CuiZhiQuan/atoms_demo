@@ -49,5 +49,6 @@ Atoms MVP 平台后端已配置 `NETLIFY_TOKEN` 环境变量。
 ```
 
 - 后端从 `data/projects/{id}/` 读取所有文件并打包为 zip
+- 部署时自动注入 `netlify.toml` 确保 HTML/CSS/JS 文件的 Content-Type 正确
 - 通过 Netlify REST API 创建站点并上传部署
 - 返回 `https://{project-name}.netlify.app` 格式的 URL
