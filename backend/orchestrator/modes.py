@@ -10,6 +10,7 @@ from backend.agents.registry import get_agent
 from backend.orchestrator.runner import run_agent_react
 from backend.sse import session_start, session_end, message_event, error_event, done_event
 from backend.config import LLM_MODEL, LLM_RACE_MODELS
+from backend.memory import load_messages, save_message
 
 
 async def engineer_mode(
@@ -20,16 +21,26 @@ async def engineer_mode(
 ) -> AsyncGenerator[dict, None]:
     """
     Engineer mode: single agent (Alex) directly generates code.
+    Loads previous conversation history for cross-turn context.
     """
+    # Load conversation history for context
+    history = await load_messages(project_id, limit=20)
+
     yield session_start(session_id, project_id, "engineer")
     yield message_event(f"🚀 Engineer Mode: Alex is coding...")
 
     agent = get_agent("engineer")
-    async for event in run_agent_react(agent, prompt, project_id, model=model):
+    final_response = ""
+    async for event in run_agent_react(agent, prompt, project_id, model=model, history=history):
         if isinstance(event, str):
             final_response = event
         else:
             yield event
+
+    # Save this turn to conversation history
+    await save_message(project_id, "user", prompt)
+    if final_response:
+        await save_message(project_id, "agent", final_response[:2000])
 
     yield done_event(project_id)
     yield session_end(session_id)
@@ -43,7 +54,11 @@ async def team_mode(
 ) -> AsyncGenerator[dict, None]:
     """
     Team mode: 4-agent pipeline (team_lead → pm → architect → engineer).
+    Loads previous conversation history for cross-turn context.
     """
+    # Load conversation history for context
+    history = await load_messages(project_id, limit=20)
+
     yield session_start(session_id, project_id, "team")
     yield message_event("🤝 Team Mode: 4 agents collaborating...")
 
@@ -65,13 +80,20 @@ async def team_mode(
         else:  # engineer
             task_prompt = f"Based on the architecture and PRD, implement the complete application:\n\nUser Request: {prompt}\n\nDesign Context:\n{context}"
 
-        async for event in run_agent_react(agent, task_prompt, project_id, context=context, model=model):
+        # Only pass history to the first agent to avoid redundancy
+        agent_history = history if agent_name == "team_lead" else None
+        async for event in run_agent_react(agent, task_prompt, project_id, context=context, model=model, history=agent_history):
             if isinstance(event, str):
                 context = event
                 if agent_name == "engineer":
                     final_result = event
             else:
                 yield event
+
+    # Save this turn to conversation history
+    await save_message(project_id, "user", prompt)
+    if final_result:
+        await save_message(project_id, "agent", final_result[:2000])
 
     yield done_event(project_id)
     yield session_end(session_id)
@@ -86,7 +108,11 @@ async def race_mode(
 ) -> AsyncGenerator[dict, None]:
     """
     Race mode: parallel execution with multiple LLMs, user picks the best result.
+    Loads previous conversation history for cross-turn context.
     """
+    # Load conversation history for context
+    history = await load_messages(project_id, limit=20)
+
     yield session_start(session_id, project_id, "race")
     yield message_event("🏁 Race Mode: 3 AI models competing...")
 
@@ -103,7 +129,7 @@ async def race_mode(
         lane_project_id = f"{project_id}_race_{lane_idx}"
         agent = get_agent("engineer")
 
-        async for event in run_agent_react(agent, prompt, lane_project_id, model=lane_model):
+        async for event in run_agent_react(agent, prompt, lane_project_id, model=lane_model, history=history):
             if isinstance(event, str):
                 lane_events.append({"type": "final_result", "content": event})
             else:
@@ -153,6 +179,9 @@ async def race_mode(
         "payload": {"race_id": race_id, "results": race_results},
         "timestamp": 0,
     }
+
+    # Save this turn to conversation history
+    await save_message(project_id, "user", prompt)
 
     yield done_event(project_id)
     yield session_end(session_id)

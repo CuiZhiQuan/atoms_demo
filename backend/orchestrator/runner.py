@@ -24,15 +24,30 @@ async def run_agent_react(
     project_id: str,
     context: str = "",
     model: Optional[str] = None,
+    history: Optional[list[dict]] = None,
 ) -> AsyncGenerator[dict, None]:
     """
     Run the ReAct loop for a single agent.
     Yields SSE event dicts as the agent thinks and acts.
+
+    Args:
+        history: previous conversation messages from session.jsonl,
+                 used to provide cross-turn context to the LLM.
     """
     yield agent_start(agent.name, f"Starting {agent.role}...")
 
     # Build messages
     messages = [agent.get_system_message()]
+
+    # Inject previous conversation history (cross-turn memory)
+    if history:
+        for msg in history:
+            role = msg.get("role", "")
+            if role == "user":
+                messages.append({"role": "user", "content": msg["content"]})
+            elif role == "agent":
+                messages.append({"role": "assistant", "content": msg["content"]})
+            # Skip system messages — they're informational, not useful as context
 
     if context:
         messages.append({"role": "user", "content": f"Context from previous steps:\n{context}\n\nNow, please work on the following task:\n{user_message}"})
