@@ -35,41 +35,55 @@ export async function runStream(
     project_id: projectId,
   });
 
-  const response = await fetch(`${API_BASE}/chat`, {
-    method: 'POST',
-    headers: authHeaders(),
-    body,
-    signal,
-  });
+  // 5-minute timeout for slow connections (Render cold start, long generation)
+  const timeoutId = setTimeout(() => {
+    if (signal && !signal.aborted) {
+      // We can't abort an external signal, but we can throw
+      throw new DOMException('Request timed out after 5 minutes', 'TimeoutError');
+    }
+  }, 300000);
 
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-  }
+  try {
+    const response = await fetch(`${API_BASE}/chat`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body,
+      signal,
+    });
 
-  const reader = response.body?.getReader();
-  if (!reader) throw new Error('No response body');
+    clearTimeout(timeoutId);
 
-  const decoder = new TextDecoder();
-  let buffer = '';
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error('No response body');
 
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split('\n');
-    buffer = lines.pop() || '';
+    const decoder = new TextDecoder();
+    let buffer = '';
 
-    for (const line of lines) {
-      if (line.startsWith('data: ')) {
-        try {
-          const event: SSEEvent = JSON.parse(line.slice(6));
-          onEvent(event);
-        } catch {
-          // Skip malformed events
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try {
+            const event: SSEEvent = JSON.parse(line.slice(6));
+            onEvent(event);
+          } catch {
+            // Skip malformed events
+          }
         }
       }
     }
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 

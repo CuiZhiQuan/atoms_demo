@@ -6,7 +6,7 @@ import SourceViewer from './SourceViewer';
 const RAW_BASE = import.meta.env.VITE_API_URL || '';
 
 export default function AppViewer() {
-  const { currentProjectId, viewerRefreshKey, isRunning } = useChatStore();
+  const { currentProjectId, viewerRefreshKey, isRunning, generationFailed } = useChatStore();
   const [viewMode, setViewMode] = useState<'desktop' | 'mobile'>('desktop');
   const [showSource, setShowSource] = useState(false);
   const [deploying, setDeploying] = useState(false);
@@ -145,6 +145,12 @@ export default function AppViewer() {
           <div className="flex-1 flex flex-col items-center justify-center bg-zinc-950 p-2 h-full gap-3">
             <div className="animate-spin w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full" />
             <p className="text-sm text-zinc-400">Generating app...</p>
+          </div>
+        ) : generationFailed ? (
+          <div className="flex-1 flex flex-col items-center justify-center bg-zinc-950 p-2 h-full gap-3">
+            <div className="text-3xl">⚠️</div>
+            <p className="text-sm text-zinc-400">Generation failed</p>
+            <p className="text-xs text-zinc-600">Check the chat panel for error details</p>
           </div>
         ) : (
           <div className="flex-1 flex items-center justify-center bg-zinc-950 p-2 h-full">

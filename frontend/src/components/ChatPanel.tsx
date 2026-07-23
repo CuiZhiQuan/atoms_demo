@@ -9,6 +9,7 @@ export default function ChatPanel() {
     messages, addMessage, mode, currentProjectId,
     isRunning, setRunning, setActiveAgent, appendThought, clearThoughts,
     triggerViewerRefresh, setRaceResults, reset, refreshProjects, setCurrentProject,
+    setGenerationFailed,
   } = useChatStore();
 
   const [input, setInput] = useState('');
@@ -113,6 +114,7 @@ export default function ChatPanel() {
         clearThoughts();
         triggerViewerRefresh();
         refreshProjects();
+        setGenerationFailed(false);
         break;
     }
   };
@@ -132,6 +134,7 @@ export default function ChatPanel() {
       await runStream(prompt, mode, currentProjectId, handleEvent, controller.signal);
     } catch (err) {
       if ((err as Error).name !== 'AbortError') {
+        setGenerationFailed(true);
         addMessage({
           role: 'system',
           content: `❌ Connection error: ${(err as Error).message}`,

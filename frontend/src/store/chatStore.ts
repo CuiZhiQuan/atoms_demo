@@ -35,6 +35,7 @@ interface ChatState {
   viewerRefreshKey: number;
   raceResults: RaceResult[] | null;
   raceSelected: boolean;
+  generationFailed: boolean;
 
   addMessage: (msg: Omit<ChatMessage, 'id' | 'timestamp'>) => void;
   setProjects: (projects: Project[]) => void;
@@ -47,6 +48,7 @@ interface ChatState {
   triggerViewerRefresh: () => void;
   setRaceResults: (results: RaceResult[] | null) => void;
   setRaceSelected: (selected: boolean) => void;
+  setGenerationFailed: (failed: boolean) => void;
   refreshProjects: () => Promise<void>;
   reset: () => void;
 }
@@ -64,6 +66,7 @@ export const useChatStore = create<ChatState>((set) => ({
   viewerRefreshKey: 0,
   raceResults: null,
   raceSelected: false,
+  generationFailed: false,
 
   addMessage: (msg) =>
     set((state) => ({
@@ -85,6 +88,7 @@ export const useChatStore = create<ChatState>((set) => ({
     set((state) => ({ viewerRefreshKey: state.viewerRefreshKey + 1 })),
   setRaceResults: (results) => set({ raceResults: results }),
   setRaceSelected: (selected) => set({ raceSelected: selected }),
+  setGenerationFailed: (failed) => set({ generationFailed: failed }),
   refreshProjects: async () => {
     try {
       const projects = await fetchProjects();
@@ -100,5 +104,6 @@ export const useChatStore = create<ChatState>((set) => ({
       agentThoughts: '',
       raceResults: null,
       raceSelected: false,
+      generationFailed: false,
     }),
 }));
