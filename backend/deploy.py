@@ -49,6 +49,21 @@ async def deploy_to_netlify(project_id: str, project_name: str) -> dict:
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
         for filepath, relpath in file_list:
             zf.write(filepath, relpath)
+        # Inject Netlify config to ensure proper content types
+        zf.writestr("netlify.toml", """
+[[headers]]
+  for = "/*.html"
+  [headers.values]
+    Content-Type = "text/html; charset=utf-8"
+[[headers]]
+  for = "/*.css"
+  [headers.values]
+    Content-Type = "text/css; charset=utf-8"
+[[headers]]
+  for = "/*.js"
+  [headers.values]
+    Content-Type = "application/javascript; charset=utf-8"
+""")
     zip_buffer.seek(0)
 
     headers = {
