@@ -1,16 +1,16 @@
 # 部署 Atoms MVP 平台
 
-将 Atoms MVP 平台本身部署到线上，采用 **Vercel（前端） + Render（后端）**，零成本上线。
+将 Atoms MVP 平台本身部署到线上，采用 **Cloudflare Pages（前端） + Render（后端）**，零成本上线。
 
 ---
 
 ## 架构
 
 ```
-用户 → Vercel (前端) → Render (后端 API)
-       ├─ 自动 HTTPS     ├─ Python FastAPI
-       ├─ 全球 CDN        ├─ SQLite 数据
-       └─ 免费额度        └─ 免费额度 750h/月
+用户 → Cloudflare Pages (前端) → Render (后端 API)
+       ├─ 自动 HTTPS            ├─ Python FastAPI
+       ├─ 全球 CDN               ├─ SQLite 数据
+       └─ 无限免费额度           └─ 免费额度 750h/月
 ```
 
 ---
@@ -53,19 +53,21 @@
 
 ---
 
-## 第二步：部署前端到 Vercel
+## 第二步：部署前端到 Cloudflare Pages
 
-1. 打开 [Vercel](https://vercel.com/)，点击 **New Project**
-2. 导入 GitHub 仓库，配置：
+1. 打开 [Cloudflare Dashboard](https://dash.cloudflare.com/)，进入 **Workers & Pages**
+2. 点击 **Create** → **Pages** → **Connect to Git**
+3. 授权并选择 GitHub 仓库 `CuiZhiQuan/atoms_demo`
+4. 配置构建：
 
 | 配置项 | 值 |
 |--------|-----|
-| Framework | Vite |
-| Root Directory | `frontend` |
-| Build Command | `npm run build` |
-| Output Directory | `dist` |
+| Production branch | `main` |
+| Build command | `npm run build` |
+| Build output directory | `frontend/dist` |
+| Root directory | `frontend` |
 
-3. 展开 **Environment Variables**，添加：
+5. 展开 **Environment Variables**，添加：
 
 | 变量名 | 值 |
 |--------|-----|
@@ -73,13 +75,15 @@
 
 > ⚠️ 替换为你的 Render 后端实际地址。
 
-4. 点击 **Deploy**
+6. 点击 **Save and Deploy**
+
+> Cloudflare Pages 免费额度：无限请求、无限带宽、每月 500 次构建。
 
 ---
 
 ## 第三步：验证
 
-1. 打开 Vercel 分配的 URL（如 `https://atoms-mvp.vercel.app`）
+1. 打开 Cloudflare Pages 分配的 URL（如 `https://atoms-mvp.pages.dev`）
 2. 注册账号 → 输入需求 → 确认 Agent 正常工作
 
 > **注意**：Render 免费版 15 分钟无请求会休眠，首次访问可能有 30 秒冷启动延迟。

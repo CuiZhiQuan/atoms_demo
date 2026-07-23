@@ -1,5 +1,4 @@
 import { useChatStore } from '../store/chatStore';
-import { selectRaceResult } from '../api/sse';
 
 export default function RaceResults() {
   const { raceResults, raceSelected, setRaceSelected, setCurrentProject, reset } = useChatStore();

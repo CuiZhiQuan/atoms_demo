@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import type { SSEEvent } from '../api/sse';
 
 export interface ChatMessage {
   id: string;

@@ -11,7 +11,7 @@ export default function AppViewer() {
   const [deployUrl, setDeployUrl] = useState<string | null>(null);
   const [deployError, setDeployError] = useState<string | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const refreshTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const refreshIframe = useCallback(() => {
     // Debounce: refresh 1 second after last file change

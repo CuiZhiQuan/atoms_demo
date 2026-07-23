@@ -1,6 +1,22 @@
 # Atoms MVP
 
-一个类 Atoms 的多智能体协作应用生成 MVP：用户用自然语言描述需求，AI 团队按 SOP 协作生成可预览的 Web 应用。
+一个类 Atoms 的多智能体协作应用生成平台：用户用自然语言描述需求，AI 团队按 SOP 协作生成可预览、可部署的 Web 应用。
+
+---
+
+## 功能特性
+
+| 功能 | 说明 |
+|------|------|
+| 🤖 **4 Agent 协作** | Team Lead → PM → Architect → Engineer 流水线 |
+| ⚡ **3 种执行模式** | Engineer（单 Agent）/ Team（4 Agent 协作）/ Race（并行竞速） |
+| 🔐 **用户认证** | JWT 注册/登录，多用户项目隔离 |
+| 👁️ **实时预览** | 桌面端/移动端双视图切换，代码变更自动刷新 |
+| 📂 **源码查看** | 内置文件树 + 语法高亮，可查看生成的所有源文件 |
+| 🚀 **一键部署** | 将生成的应用一键部署到 Vercel，获得公开 URL |
+| 🔄 **SSE 流式推送** | Agent 状态、工具调用、文件变更实时展示 |
+
+---
 
 ## 架构
 
@@ -24,124 +40,146 @@
 └─────────────────────────────────────────────────────────┘
 ```
 
+---
+
 ## 快速启动
 
-### 1. 环境准备
+### 1. 环境要求
+
+- Python 3.9+
+- Node.js 18+
+
+### 2. 安装依赖
 
 ```bash
-# Python 3.9+
+# 后端依赖
 pip3 install -r backend/requirements.txt
 
-# Node.js 18+
+# 前端依赖
 cd frontend && npm install
 ```
 
-### 2. 配置 LLM
+### 3. 配置 LLM
 
 ```bash
 cp backend/.env.example .env
-# 编辑 .env，填入你的 LLM API Key
 ```
+
+编辑 `.env`，填入你的 LLM API Key：
 
 ```env
 LLM_API_KEY=sk-your-api-key-here
-LLM_BASE_URL=https://api.openai.com/v1
-LLM_MODEL=gpt-4o
+LLM_BASE_URL=https://api.deepseek.com
+LLM_MODEL=deepseek-v4-flash
+LLM_RACE_MODELS=deepseek-v3,deepseek-chat
 ```
 
-### 3. 启动
+### 4. 启动
 
 ```bash
 # 终端 1：启动后端
-uvicorn backend.main:app --port 8000 --reload
+python3 -m uvicorn backend.main:app --port 8000 --reload
 
 # 终端 2：启动前端
 cd frontend && npm run dev
 ```
 
-访问 `http://localhost:5173` 即可使用。
+访问 `http://localhost:5173`，注册账号后即可使用。
 
-## 执行模式
+---
 
-| 模式 | 说明 | 适用场景 |
-|------|------|----------|
-| ⚡ **Engineer** | 单 Agent (Alex) 直接生成代码 | 简单需求（todo、计算器） |
-| 🤝 **Team** | 4 Agent 协作 (Mike→Emma→Bob→Alex) | 复杂需求（博客、Dashboard） |
-| 🏁 **Race** | 3 个 LLM 并行竞速，选最佳结果 | 需要多方案对比 |
+## 使用指南
+
+### 注册与登录
+
+首次使用需要注册账号，输入用户名（≥3 字符）和密码（≥6 字符）。登录后获得 JWT Token，所有 API 请求自动携带 Token 进行身份验证。
+
+### 三种执行模式
+
+| 模式 | 说明 | 耗时 | 适用场景 |
+|------|------|------|----------|
+| ⚡ **Engineer** | 单 Agent (Alex) 直接生成代码 | 30s - 2min | 简单需求（todo、计算器、落地页） |
+| 🤝 **Team** | 4 Agent SOP 协作 (Mike→Emma→Bob→Alex) | 2 - 5min | 复杂需求（多页应用、仪表盘、游戏） |
+| 🏁 **Race** | 3 个 LLM 并行竞速，选择最佳结果 | 2 - 5min | 对质量要求高，需要多方案对比 |
+
+### 预览应用
+
+Agent 生成代码后，右侧预览区自动展示应用效果：
+
+- **Desktop** 模式：全宽预览
+- **Mobile** 模式：375×667 手机尺寸预览
+- **刷新按钮**：手动刷新预览内容
+- **Source 按钮**：切换到源码查看模式
+
+### 查看源代码
+
+点击 `< > Source` 按钮进入源码查看：
+
+- 左侧文件树展示所有生成的文件
+- 右侧代码区带语法高亮
+- 点击文件名切换查看
+
+### 部署应用
+
+Agent 生成应用后，点击 **🚀 Deploy** 按钮：
+
+1. 后端自动将项目文件上传到 Vercel
+2. 部署成功后显示线上 URL
+3. 点击 📋 一键复制链接
+
+> 前提：后端需配置 `VERCEL_TOKEN` 环境变量，详见 [DEPLOY_APP.md](DEPLOY_APP.md)。
+
+---
 
 ## 4 个核心 Agent
 
-| Agent | 角色 | 职责 |
-|-------|------|------|
-| **Mike** | Team Lead | 分析需求，任务分发 |
-| **Emma** | Product Manager | 输出 PRD（目标、用户故事、功能列表） |
-| **Bob** | Software Architect | 设计技术架构（技术栈、目录结构、数据模型） |
-| **Alex** | Senior Engineer | 写代码（读写文件、运行命令） |
+| Agent | 角色 | 工具 | 职责 |
+|-------|------|------|------|
+| **Mike** | Team Lead | ❌ | 分析需求，生成结构化任务计划（JSON），决定执行模式 |
+| **Emma** | Product Manager | ❌ | 基于分析生成 PRD（目标、用户故事、功能列表、UI 需求） |
+| **Bob** | Software Architect | ❌ | 设计技术架构（技术栈、目录结构、数据模型、组件树） |
+| **Alex** | Senior Engineer | ✅ (4 tools) | 编写代码文件，执行 Shell 命令，输出可运行应用 |
+
+---
 
 ## 技术栈
 
-- **后端**: FastAPI + LiteLLM + SQLite + aiosqlite
-- **前端**: React 19 + TypeScript + Vite + Tailwind CSS + Zustand
-- **LLM**: 支持 OpenAI 协议的所有模型（OpenAI / DeepSeek / 智谱 GLM / Claude 等）
-
-## 项目结构
-
-```
-atoms_demo/
-├── backend/
-│   ├── main.py              # FastAPI 入口
-│   ├── config.py            # 配置加载
-│   ├── llm.py               # LiteLLM 客户端
-│   ├── tools.py             # Agent 工具（文件/Shell）
-│   ├── db.py                # SQLite 持久化
-│   ├── memory.py            # 会话历史 JSONL
-│   ├── sse.py               # SSE 事件协议
-│   ├── api/routes.py        # API 路由
-│   ├── agents/
-│   │   ├── base.py          # Agent 基类
-│   │   ├── registry.py      # Agent 注册表
-│   │   ├── team_lead.py     # Mike
-│   │   ├── pm.py            # Emma
-│   │   ├── architect.py     # Bob
-│   │   └── engineer.py      # Alex
-│   └── orchestrator/
-│       ├── runner.py        # ReAct 循环
-│       └── modes.py         # 3 种执行模式
-├── frontend/
-│   └── src/
-│       ├── api/sse.ts       # SSE 客户端
-│       ├── store/chatStore.ts # Zustand 状态管理
-│       └── components/      # React 组件
-├── data/                    # 运行期生成（SQLite + 项目代码）
-└── .env                     # 环境变量（需自行创建）
-```
-
-## API
-
-| 端点 | 方法 | 说明 |
+| 层级 | 技术 | 说明 |
 |------|------|------|
-| `/api/health` | GET | 健康检查 |
-| `/api/chat` | POST | SSE 流式对话 |
-| `/api/projects` | GET | 项目列表 |
-| `/api/projects` | POST | 创建项目 |
-| `/api/projects/{id}` | DELETE | 删除项目 |
-| `/api/race/{id}/results` | GET | Race 结果 |
-| `/api/race/{id}/select` | POST | 选择 Race 结果 |
+| 后端框架 | FastAPI + Uvicorn | 异步 Web 框架 |
+| LLM 集成 | LiteLLM | 统一多模型调用接口 |
+| 数据库 | SQLite + aiosqlite | 项目元数据持久化 |
+| 前端框架 | React 19 + TypeScript | 组件化 UI |
+| 构建工具 | Vite | 快速开发与构建 |
+| 样式 | Tailwind CSS | 原子化 CSS |
+| 状态管理 | Zustand | 轻量状态管理 |
+| 认证 | JWT (python-jose) + bcrypt | 密码哈希 + Token 鉴权 |
 
-## FAQ
+---
 
-**Q: 支持哪些 LLM？**
-A: 所有兼容 OpenAI 协议的模型。在 `.env` 中配置 `LLM_BASE_URL` 和 `LLM_MODEL` 即可。
+## 配置参考
 
-**Q: Race 模式如何使用多个模型？**
-A: 在 `.env` 中设置 `LLM_RACE_MODELS=deepseek-chat,gpt-4o,claude-3-5-sonnet`（逗号分隔）。
+完整 `.env` 配置项：
 
-**Q: 数据存储在哪里？**
-A: 项目元数据在 `data/atoms.db`（SQLite），项目代码在 `data/projects/{id}/`。
+| 变量 | 说明 | 示例 |
+|------|------|------|
+| `LLM_API_KEY` | 🔑 LLM API 密钥 | `sk-xxx` |
+| `LLM_BASE_URL` | LLM API 地址 | `https://api.deepseek.com` |
+| `LLM_MODEL` | 默认模型（Engineer/Team 模式） | `deepseek-v4-flash` |
+| `LLM_RACE_MODELS` | Race 模式额外模型（逗号分隔） | `deepseek-v3,claude-3-5-sonnet` |
+| `JWT_SECRET` | 🔑 JWT 签名密钥 | `随机字符串` |
+| `JWT_ALGORITHM` | JWT 加密算法 | `HS256` |
+| `JWT_EXPIRE_MINUTES` | Token 过期时间（分钟） | `1440` |
+| `VERCEL_TOKEN` | Vercel 部署 Token（可选） | `vc_xxx` |
+| `HOST` | 服务监听地址 | `0.0.0.0` |
+| `PORT` | 服务端口 | `8000` |
 
-**Q: 如何清理数据？**
-A: 删除 `data/` 目录即可，重启后自动重建。
+> 详细说明见 [backend/.env.example](backend/.env.example)。
 
-## 许可
+---
 
-MIT
+## API 接口
+
+### 认证
+
+| 端点
