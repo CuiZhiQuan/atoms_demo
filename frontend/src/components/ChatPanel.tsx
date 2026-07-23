@@ -6,7 +6,7 @@ import type { SSEEvent } from '../api/sse';
 
 export default function ChatPanel() {
   const {
-    messages, addMessage, mode,
+    messages, addMessage, mode, currentProjectId,
     isRunning, setRunning, setActiveAgent, appendThought, clearThoughts,
     triggerViewerRefresh, setRaceResults, reset, refreshProjects, setCurrentProject,
   } = useChatStore();
@@ -113,7 +113,6 @@ export default function ChatPanel() {
         clearThoughts();
         triggerViewerRefresh();
         refreshProjects();
-        setCurrentProject(null);
         break;
     }
   };
@@ -130,7 +129,7 @@ export default function ChatPanel() {
     abortRef.current = controller;
 
     try {
-      await runStream(prompt, mode, null, handleEvent, controller.signal);
+      await runStream(prompt, mode, currentProjectId, handleEvent, controller.signal);
     } catch (err) {
       if ((err as Error).name !== 'AbortError') {
         addMessage({
