@@ -35,55 +35,51 @@ export async function runStream(
     project_id: projectId,
   });
 
-  // 5-minute timeout for slow connections (Render cold start, long generation)
-  const timeoutId = setTimeout(() => {
-    if (signal && !signal.aborted) {
-      // We can't abort an external signal, but we can throw
-      throw new DOMException('Request timed out after 5 minutes', 'TimeoutError');
-    }
-  }, 300000);
-
+  // Wake up Render (free tier sleeps after 15 min inactivity, cold start takes ~50s)
   try {
-    const response = await fetch(`${API_BASE}/chat`, {
-      method: 'POST',
-      headers: authHeaders(),
-      body,
-      signal,
+    await fetch(`${API_BASE}/health`, {
+      method: 'GET',
+      signal: AbortSignal.timeout(60000),
     });
+  } catch {
+    // Backend still waking up, but we've already triggered the wake-up cycle
+  }
 
-    clearTimeout(timeoutId);
+  const response = await fetch(`${API_BASE}/chat`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body,
+    signal,
+  });
 
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
 
-    const reader = response.body?.getReader();
-    if (!reader) throw new Error('No response body');
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error('No response body');
 
-    const decoder = new TextDecoder();
-    let buffer = '';
+  const decoder = new TextDecoder();
+  let buffer = '';
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
 
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
 
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          try {
-            const event: SSEEvent = JSON.parse(line.slice(6));
-            onEvent(event);
-          } catch {
-            // Skip malformed events
-          }
+    for (const line of lines) {
+      if (line.startsWith('data: ')) {
+        try {
+          const event: SSEEvent = JSON.parse(line.slice(6));
+          onEvent(event);
+        } catch {
+          // Skip malformed events
         }
       }
     }
-  } finally {
-    clearTimeout(timeoutId);
   }
 }
 
