@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { fetchProjects } from '../api/sse';
 
 export interface ChatMessage {
   id: string;
@@ -46,6 +47,7 @@ interface ChatState {
   triggerViewerRefresh: () => void;
   setRaceResults: (results: RaceResult[] | null) => void;
   setRaceSelected: (selected: boolean) => void;
+  refreshProjects: () => Promise<void>;
   reset: () => void;
 }
 
@@ -83,6 +85,14 @@ export const useChatStore = create<ChatState>((set) => ({
     set((state) => ({ viewerRefreshKey: state.viewerRefreshKey + 1 })),
   setRaceResults: (results) => set({ raceResults: results }),
   setRaceSelected: (selected) => set({ raceSelected: selected }),
+  refreshProjects: async () => {
+    try {
+      const projects = await fetchProjects();
+      set({ projects });
+    } catch (e) {
+      console.error('Failed to refresh projects:', e);
+    }
+  },
   reset: () =>
     set({
       isRunning: false,

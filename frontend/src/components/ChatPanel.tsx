@@ -8,7 +8,7 @@ export default function ChatPanel() {
   const {
     messages, addMessage, mode, currentProjectId,
     isRunning, setRunning, setActiveAgent, appendThought, clearThoughts,
-    triggerViewerRefresh, setRaceResults, reset,
+    triggerViewerRefresh, setRaceResults, reset, refreshProjects, setCurrentProject,
   } = useChatStore();
 
   const [input, setInput] = useState('');
@@ -25,6 +25,8 @@ export default function ChatPanel() {
     switch (type) {
       case 'session_start':
         addMessage({ role: 'system', content: `Session started · Mode: ${payload.mode}` });
+        setCurrentProject(payload.project_id as string);
+        refreshProjects();
         break;
 
       case 'session_end':
@@ -110,6 +112,7 @@ export default function ChatPanel() {
         setActiveAgent(null);
         clearThoughts();
         triggerViewerRefresh();
+        refreshProjects();
         break;
     }
   };
