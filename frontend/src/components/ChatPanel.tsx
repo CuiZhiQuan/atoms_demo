@@ -130,7 +130,7 @@ export default function ChatPanel() {
     abortRef.current = controller;
 
     try {
-      await runStream(prompt, mode, currentProjectId, handleEvent, controller.signal);
+      await runStream(prompt, mode, null, handleEvent, controller.signal);
     } catch (err) {
       if ((err as Error).name !== 'AbortError') {
         addMessage({
